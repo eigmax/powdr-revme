@@ -10,13 +10,13 @@ def run_test(idx):
     print(f"Running test case number {idx}", file=sys.stderr)
 
     qemu_proc = subprocess.Popen(
-        ["qemu-riscv32", "-plugin", "../../qemu-6.2+dfsg/contrib/plugins/libexeclog.so", "-d", "plugin", "-g", "1234", "target/riscv32imac-unknown-none-elf/release/evm"],
+        ["qemu-riscv32", "-plugin", "../../qemu-6.2+dfsg/contrib/plugins/libexeclog.so", "-d", "plugin", "-g", "12345", "target/riscv32imac-unknown-none-elf/release/evm"],
         stderr=subprocess.PIPE, stdout=sys.stderr
     )
 
     wc_proc = subprocess.Popen(["wc"], stdin=qemu_proc.stderr, stdout=subprocess.PIPE)
 
-    gdb_proc = subprocess.Popen(["gdb-multiarch", "target/riscv32imac-unknown-none-elf/release/evm", "-ex", "target remote :1234", "-ex", f"set $a0 = {idx}", "-ex", "c", "-ex", "c", "-ex", "exit"], stdout=sys.stderr, stderr=sys.stderr)
+    gdb_proc = subprocess.Popen(["gdb-multiarch", "target/riscv32imac-unknown-none-elf/release/evm", "-ex", "target remote :12345", "-ex", f"set $a0 = {idx}", "-ex", "c", "-ex", "c", "-ex", "exit"], stdout=sys.stderr, stderr=sys.stderr)
 
     for line in wc_proc.stdout:
         wc_out = line
@@ -30,5 +30,5 @@ def run_test(idx):
     print(f"{idx};{num_steps}")
     sys.stdout.flush()
 
-for i in range(64):
+for i in range(17, 64):
     run_test(i)
