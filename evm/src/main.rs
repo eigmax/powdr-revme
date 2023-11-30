@@ -1,4 +1,5 @@
 #![no_std]
+#![no_main]
 
 use revm::{
     db::{CacheDB, EmptyDB, CacheState},
@@ -8,89 +9,97 @@ use revm::{
     },
     EVM,
 };
-use runtime::{print, get_prover_input, coprocessors::{get_data, get_data_len}};
 
 use models::*;
 
+extern crate runtime;
 extern crate alloc;
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::string::String;
 use alloc::string::ToString;
 
+const TESTS: &[&'static str] = &[
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/pop.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/codecopy.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/mload.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/pc.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/jumpToPush.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/loopsConditionals.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/mstore.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/loop_stacklimit.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/gas.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/jumpi.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/mstore8.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/return.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/msize.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/sstore_sload.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmIOandFlowOperations/jump.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmPerformance/loopExp.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmPerformance/loopMul.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmPerformance/performanceTester.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmLogTest/log1.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmLogTest/log4.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmLogTest/log0.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmLogTest/log2.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmLogTest/log3.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/expPower256Of256.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/sdiv.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/smod.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/not.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/exp.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/sub.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/signextend.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/mod.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/addmod.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/fib.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/add.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/div.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/divByZero.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/mulmod.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/mul.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/expPower2.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/expPower256.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/arith.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmArithmeticTest/twoOps.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/and.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/not.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/gt.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/eq.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/lt.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/slt.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/byte.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/iszero.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/sgt.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/or.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmBitwiseLogicOperation/xor.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/calldataload.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/envInfo.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/random.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/blockInfo.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/suicide.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/push.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/dup.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/swap.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/calldatasize.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/sha3.json"),
+    include_str!("../../../ethereum-tests/GeneralStateTests/VMTests/vmTests/calldatacopy.json"),
+];
+
 #[no_mangle]
-fn main() {
-    ethereum_tests_simple();
+pub extern "C" fn _start(aaa: usize) /*-> !*/
+{
+    ethereum_tests_simple(aaa);
 }
 
-fn ethereum_tests_simple() {
-    let suite_len = get_data_len(666);
-    let mut suite_json = vec![0; suite_len];
-    get_data(666, &mut suite_json);
-
-    let suite_json: Vec<u8> = suite_json.into_iter().map(|x| x as u8).collect();
-    
-    let suite_json_str = String::from_utf8(suite_json).unwrap();
-    let suite = read_suite(&suite_json_str);
+#[inline(never)]
+fn ethereum_tests_simple(idx: usize) {
+    let suite = read_suite(TESTS[idx]);
 
     assert!(execute_test(&suite).is_ok());
 }
 
-fn simple_test() {
-    const CONTRACT_ADDR: Address = address!("0d4a11d5EEaaC28EC3F61d100daF4d40471f1852");
-    const CODE_HASH: B256 =
-        b256!("e3c84e69bac71c159b2ff0d62b9a5c231887a809a96cb4a262a4b96ed78a1db2");
-    let mut db = CacheDB::new(EmptyDB::default());
-
-    let bytecode_len = get_prover_input(0);
-    let bytecode: Vec<_> = (1..(bytecode_len + 1)).map(|idx| get_prover_input(idx) as u8).collect();
-    /*
-    let bytecode_len = get_data_len(0);
-    let mut bytecode = vec![0; bytecode_len];
-    get_data(0, &mut bytecode);
-    */
-
-    // Fill database:
-    let bytecode = Bytes::from(bytecode);
-    let account = AccountInfo::new(Uint::from(10), 0, CODE_HASH, Bytecode::new_raw(bytecode));
-
-    db.insert_account_info(CONTRACT_ADDR, account);
-
-    let mut evm: EVM<CacheDB<EmptyDB>> = EVM::new();
-    evm.database(db);
-
-    // fill in missing bits of env struc
-    // change that to whatever caller you want to be
-    evm.env.tx.caller = Address::from_slice(&[0; 20]);
-    // account you want to transact with
-    evm.env.tx.transact_to = TransactTo::Call(CONTRACT_ADDR);
-    // calldata formed via abigen
-    evm.env.tx.data = Bytes::new();
-    // transaction value in wei
-    evm.env.tx.value = U256::try_from(0).unwrap();
-
-    let result = evm.transact().unwrap();
-
-    match result.result {
-        revm::primitives::ExecutionResult::Success {
-            reason: _,
-            gas_used: _,
-            gas_refunded: _,
-            logs: _,
-            output,
-        } => print!("Success: {:#?}", output.into_data()),
-        revm::primitives::ExecutionResult::Revert {
-            gas_used: _,
-            output: _,
-        } => panic!("Revert!"),
-        revm::primitives::ExecutionResult::Halt {
-            reason: _,
-            gas_used: _,
-        } => panic!("Halt!"),
-    };
-}
-
-fn read_suite(s: &String) -> TestSuite {
+fn read_suite(s: &str) -> TestSuite {
     let suite: TestSuite = serde_json::from_str(s).map_err(|e| e).unwrap();
     suite
 }
@@ -258,12 +267,12 @@ fn execute_test(suite: &TestSuite) -> Result<(), String> {
                         (None, Ok(_)) => (),
                         // return okay, exception is expected.
                         (Some(_), Err(e)) => {
-                            print!("ERROR: {e}");
+                            //print!("ERROR: {e}");
                             return Ok(());
                         }
                         _ => {
                             let s = exec_result.clone().err().map(|e| e.to_string()).unwrap();
-                            print!("ERROR: {s}");
+                            //print!("ERROR: {s}");
                             return Err(s);
                         }
                     }
